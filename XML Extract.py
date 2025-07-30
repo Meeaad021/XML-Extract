@@ -1,10 +1,12 @@
 import lxml.etree as ET
 import re
 import os
+import xlwt # Import the xlwt library for .xls files
 
 # --- Configuration ---
 xml_file_name = 'Otex Script.xml'
 xml_file_path = os.path.join(os.path.dirname(__file__), xml_file_name)
+excel_output_file = 'Otex Data.xls' # Name of the Excel file to create
 
 print(f"Attempting to read XML from: {xml_file_path}")
 
@@ -38,36 +40,53 @@ try:
 
 
     # --- Parsing and Extraction ---
-    # Create an XMLParser with recovery enabled.
-    # This tells lxml to try its best to parse even if the XML is malformed (e.g., missing closing tags).
     parser = ET.XMLParser(recover=True)
     root = ET.fromstring(wrapped_xml_string.encode('utf-8'), parser=parser)
     print("Parsed XML with recovery enabled.")
 
     # Find ALL <ques> elements anywhere in the document.
     ques_elements = root.findall('.//ques')
-    
-    print("\n--- Extracted Ques ID and Subq Filter ---")
+
+    print(f"\n--- Preparing to write to '{excel_output_file}' ---")
+
+    # --- Excel Writing Setup ---
+    workbook = xlwt.Workbook() # Create a new workbook
+    sheet = workbook.add_sheet("Ques Data") # Add a sheet named "Ques Data"
+
+    # Write headers to the first row (row 0)
+    sheet.write(0, 0, "Ques ID")
+    sheet.write(0, 1, "Subq Filter")
+
+    current_row = 1 # Start writing data from the second row (row 1)
+
+    # --- Extraction and Excel Writing Loop ---
     if ques_elements:
         for i, ques_elem in enumerate(ques_elements):
             ques_id = ques_elem.get('id')
             
-            # Find the direct child <subq> element of the current <ques>
             subq_element = ques_elem.find('subq')
             
-            subq_filter = "N/A" # Default value if subq or filter is not found
+            subq_filter = "N/A" 
 
             if subq_element is not None:
                 subq_filter = subq_element.get('filter')
-                if subq_filter is None: # If <subq> exists but 'filter' attribute is missing
-                    subq_filter = ""
-            else: # If <subq> element itself is not found under <ques>
-                subq_filter = "Subq Not Found"
+                if subq_filter is None:
+                    subq_filter = "Attribute 'filter' not found in <subq> element."
+            else:
+                subq_filter = "No <subq> element found."
             
-            print(f"Ques ID: {ques_id if ques_id else 'Not Found'}, Subq Filter: {subq_filter}")
+            # Write the extracted data to the Excel sheet
+            sheet.write(current_row, 0, ques_id if ques_id else "Not Found")
+            sheet.write(current_row, 1, subq_filter)
+            
+            current_row += 1 # Move to the next row for the next entry
+
+        # Save the workbook after the loop finishes
+        workbook.save(excel_output_file)
+        print(f"Successfully extracted {current_row - 1} entries to '{excel_output_file}'")
 
     else:
-        print("No <ques> elements found in the document.")
+        print("No <ques> elements found in the document. No Excel file was created.")
 
 except FileNotFoundError:
     print(f"Error: The XML file '{xml_file_name}' was not found at '{xml_file_path}'.")
